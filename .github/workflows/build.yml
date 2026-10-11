@@ -40,25 +40,26 @@ jobs:
 
       - name: Load base defconfig then apply incremental tweaks
         run: |
+          # 1) start from the known-good base defconfig
           cp defconfig/mt7981-ax3000.config .config
           make defconfig
-          # --- Tweak 1: keep ONLY cmcc_rax3000m (NAND), disable all other target devices ---
-          # turn every other mediatek_filogic DEVICE_...=y into =is not set
+          # 2) apply all tweaks AFTER the first defconfig, then re-run defconfig to lock them in
+          # --- Tweak 1: keep ONLY cmcc_rax3000m (NAND), disable every other target device ---
           sed -i -E 's/^(CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_.+)=y$/# \1 is not set/' .config
-          # re-enable only the NAND variant
-          sed -i -E 's/^# (CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cmcc_rax3000m) is not set$/\1=y/' .config
-          # --- Tweak 2: drop proxy shells (ssr-plus / passwall) ---
+          sed -i -E 's|^# (CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cmcc_rax3000m) is not set$|\1=y|' .config
+          # --- Tweak 2: drop proxy shells (ssr-plus / passwall) — do this AFTER defconfig so feeds defaults don't re-inject ---
           sed -i -E '/luci-app-ssr-plus/d' .config
           sed -i -E '/luci-app-passwall/d' .config
           sed -i -E '/ssr-plus_INCLUDE/d' .config
-          # --- Tweak 3: add Argon theme + config (zh-cn naming, matches base defconfig) ---
+          # --- Tweak 3: add Argon theme + config (both confirmed to exist in feeds) ---
+          # NOTE: immortalwrt 24.10 has NO standalone base Chinese package (zh-cn/zh_Hans
+          # both 404); LuCI base Chinese is built into luci-base, so we don't add it.
           echo 'CONFIG_PACKAGE_luci-theme-argon=y' >> .config
           echo 'CONFIG_PACKAGE_luci-app-argon-config=y' >> .config
-          echo 'CONFIG_PACKAGE_luci-i18n-base-zh-cn=y' >> .config
-          echo 'CONFIG_PACKAGE_luci-i18n-argon-config-zh-cn=y' >> .config
-          make defconfig   # re-expand so new packages resolve
+          # 3) re-expand so removals + additions are fully resolved
+          make defconfig
 
-      - name: Verify (hard-fail on proxy, warn on optional ui)
+      - name: Verify (hard-fail on proxy, confirm device + driver)
         run: |
           echo "=== cmcc_rax3000m (NAND) selected? ==="
           grep -q "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cmcc_rax3000m=y" .config || { echo "FAIL: cmcc_rax3000m NOT selected"; exit 1; }
@@ -67,9 +68,8 @@ jobs:
           echo "=== NO proxy shells? (hard fail) ==="
           grep -q "luci-app-ssr-plus" .config && { echo "FAIL: ssr-plus still present"; exit 1; }
           grep -q "luci-app-passwall" .config && { echo "FAIL: passwall still present"; exit 1; }
-          echo "=== optional UI resolved? (warn only) ==="
+          echo "=== Argon theme resolved? (warn only) ==="
           grep -q "CONFIG_PACKAGE_luci-theme-argon=y" .config && echo "OK argon theme resolved" || echo "WARN: luci-theme-argon NOT resolved"
-          grep -q "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" .config && echo "OK zh-cn base resolved" || echo "WARN: luci-i18n-base-zh-cn NOT resolved"
           echo "VERIFY DONE"
 
       - name: Download packages
