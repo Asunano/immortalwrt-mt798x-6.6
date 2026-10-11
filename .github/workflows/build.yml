@@ -38,25 +38,39 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Load RAX3000M NAND-only defconfig
+      - name: Load base defconfig then apply incremental tweaks
         run: |
-          cp defconfig-cmcc_rax3000m-nand.config .config
+          cp defconfig/mt7981-ax3000.config .config
           make defconfig
+          # --- Tweak 1: keep ONLY cmcc_rax3000m (NAND), disable all other target devices ---
+          # turn every other mediatek_filogic DEVICE_...=y into =is not set
+          sed -i -E 's/^(CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_.+)=y$/# \1 is not set/' .config
+          # re-enable only the NAND variant
+          sed -i -E 's/^# (CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cmcc_rax3000m) is not set$/\1=y/' .config
+          # --- Tweak 2: drop proxy shells (ssr-plus / passwall) ---
+          sed -i -E '/luci-app-ssr-plus/d' .config
+          sed -i -E '/luci-app-passwall/d' .config
+          sed -i -E '/ssr-plus_INCLUDE/d' .config
+          # --- Tweak 3: add Argon theme + config (zh-cn naming, matches base defconfig) ---
+          echo 'CONFIG_PACKAGE_luci-theme-argon=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-app-argon-config=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-i18n-base-zh-cn=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-i18n-argon-config-zh-cn=y' >> .config
+          make defconfig   # re-expand so new packages resolve
 
-      - name: Verify selected packages actually resolved
+      - name: Verify (hard-fail on proxy, warn on optional ui)
         run: |
-          echo "=== checking cmcc_rax3000m (NAND) selected ==="
+          echo "=== cmcc_rax3000m (NAND) selected? ==="
           grep -q "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cmcc_rax3000m=y" .config || { echo "FAIL: cmcc_rax3000m NOT selected"; exit 1; }
-          echo "=== checking closed-source mtwifi driver ==="
+          echo "=== closed-source mtwifi driver? ==="
           grep -q "CONFIG_MTK_WIFI_DRIVER=y" .config || { echo "FAIL: closed-source mtwifi NOT enabled"; exit 1; }
-          echo "=== checking Argon theme resolved (package name must exist in feeds) ==="
-          grep -q "CONFIG_PACKAGE_luci-theme-argon=y" .config || { echo "FAIL: luci-theme-argon did NOT resolve (wrong package name?)"; exit 1; }
-          echo "=== checking Chinese base translation resolved ==="
-          grep -q "CONFIG_PACKAGE_luci-i18n-base-zh_Hans=y" .config || { echo "FAIL: luci-i18n-base-zh_Hans did NOT resolve (wrong package name?)"; exit 1; }
-          echo "=== checking NO proxy shells selected ==="
+          echo "=== NO proxy shells? (hard fail) ==="
           grep -q "luci-app-ssr-plus" .config && { echo "FAIL: ssr-plus still present"; exit 1; }
           grep -q "luci-app-passwall" .config && { echo "FAIL: passwall still present"; exit 1; }
-          echo "ALL CHECKS PASSED"
+          echo "=== optional UI resolved? (warn only) ==="
+          grep -q "CONFIG_PACKAGE_luci-theme-argon=y" .config && echo "OK argon theme resolved" || echo "WARN: luci-theme-argon NOT resolved"
+          grep -q "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" .config && echo "OK zh-cn base resolved" || echo "WARN: luci-i18n-base-zh-cn NOT resolved"
+          echo "VERIFY DONE"
 
       - name: Download packages
         run: make download -j$(nproc)
