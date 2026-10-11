@@ -38,16 +38,25 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Load RAX3000M NAND defconfig
+      - name: Load RAX3000M NAND-only defconfig
         run: |
-          cp defconfig/mt7981-ax3000.config .config
+          cp defconfig-cmcc_rax3000m-nand.config .config
           make defconfig
 
-      - name: Verify target device + closed-source wifi driver
+      - name: Verify selected packages actually resolved
         run: |
-          grep -q "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cmcc_rax3000m=y" .config || { echo "cmcc_rax3000m NOT selected!"; exit 1; }
-          grep -q "CONFIG_MTK_WIFI_DRIVER=y" .config || { echo "closed-source mtwifi NOT enabled!"; exit 1; }
-          echo "OK: cmcc_rax3000m (NAND) + closed-source mtwifi selected"
+          echo "=== checking cmcc_rax3000m (NAND) selected ==="
+          grep -q "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cmcc_rax3000m=y" .config || { echo "FAIL: cmcc_rax3000m NOT selected"; exit 1; }
+          echo "=== checking closed-source mtwifi driver ==="
+          grep -q "CONFIG_MTK_WIFI_DRIVER=y" .config || { echo "FAIL: closed-source mtwifi NOT enabled"; exit 1; }
+          echo "=== checking Argon theme resolved (package name must exist in feeds) ==="
+          grep -q "CONFIG_PACKAGE_luci-theme-argon=y" .config || { echo "FAIL: luci-theme-argon did NOT resolve (wrong package name?)"; exit 1; }
+          echo "=== checking Chinese base translation resolved ==="
+          grep -q "CONFIG_PACKAGE_luci-i18n-base-zh_Hans=y" .config || { echo "FAIL: luci-i18n-base-zh_Hans did NOT resolve (wrong package name?)"; exit 1; }
+          echo "=== checking NO proxy shells selected ==="
+          grep -q "luci-app-ssr-plus" .config && { echo "FAIL: ssr-plus still present"; exit 1; }
+          grep -q "luci-app-passwall" .config && { echo "FAIL: passwall still present"; exit 1; }
+          echo "ALL CHECKS PASSED"
 
       - name: Download packages
         run: make download -j$(nproc)
