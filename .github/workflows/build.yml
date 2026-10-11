@@ -43,21 +43,19 @@ jobs:
           # 1) start from the known-good base defconfig
           cp defconfig/mt7981-ax3000.config .config
           make defconfig
-          # 2) apply all tweaks AFTER the first defconfig, then re-run defconfig to lock them in
-          # --- Tweak 1: keep ONLY cmcc_rax3000m (NAND), disable every other target device ---
+          # 2) apply device + argon tweaks, then re-run defconfig to resolve them
           sed -i -E 's/^(CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_.+)=y$/# \1 is not set/' .config
           sed -i -E 's|^# (CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cmcc_rax3000m) is not set$|\1=y|' .config
-          # --- Tweak 2: drop proxy shells (ssr-plus / passwall) — do this AFTER defconfig so feeds defaults don't re-inject ---
+          echo 'CONFIG_PACKAGE_luci-theme-argon=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-app-argon-config=y' >> .config
+          make defconfig
+          # 3) CRITICAL: a second defconfig re-injects feeds-default options (incl. passwall),
+          #    so strip proxy shells AFTER the final defconfig. No further defconfig after this
+          #    — `make` will oldconfig the rest and won't resurrect deleted lines.
           sed -i -E '/luci-app-ssr-plus/d' .config
           sed -i -E '/luci-app-passwall/d' .config
           sed -i -E '/ssr-plus_INCLUDE/d' .config
-          # --- Tweak 3: add Argon theme + config (both confirmed to exist in feeds) ---
-          # NOTE: immortalwrt 24.10 has NO standalone base Chinese package (zh-cn/zh_Hans
-          # both 404); LuCI base Chinese is built into luci-base, so we don't add it.
-          echo 'CONFIG_PACKAGE_luci-theme-argon=y' >> .config
-          echo 'CONFIG_PACKAGE_luci-app-argon-config=y' >> .config
-          # 3) re-expand so removals + additions are fully resolved
-          make defconfig
+          sed -i -E '/PASSWALL/d' .config
 
       - name: Verify (hard-fail on proxy, confirm device + driver)
         run: |
