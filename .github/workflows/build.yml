@@ -43,10 +43,8 @@ jobs:
           restore-keys: |
             rax3000m-itb-${{ runner.os }}-
 
-      - name: Add OpenClash third-party feed then update & install feeds
+      - name: Update & install feeds
         run: |
-          # OpenClash is NOT in immortalwrt official feeds; add vernesong's repo
-          grep -q "OpenClash" feeds.conf.default || echo 'src-git openclash https://github.com/vernesong/OpenClash.git;master' >> feeds.conf.default
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
@@ -65,7 +63,6 @@ jobs:
           echo 'CONFIG_PACKAGE_luci-app-nlbwmon=y' >> .config
           echo 'CONFIG_PACKAGE_luci-app-commands=y' >> .config
           echo 'CONFIG_PACKAGE_luci-app-upnp=y' >> .config
-          echo 'CONFIG_PACKAGE_luci-app-openclash=y' >> .config
           # --- Tweak 5: USB tethering (phone/tablet -> router) kernel modules ---
           echo 'CONFIG_PACKAGE_kmod-usb-net=y' >> .config
           echo 'CONFIG_PACKAGE_kmod-usb-net-rndis=y' >> .config
@@ -94,7 +91,7 @@ jobs:
           echo "=== Argon theme resolved? (warn only) ==="
           grep -q "CONFIG_PACKAGE_luci-theme-argon=y" .config && echo "OK argon theme resolved" || echo "WARN: luci-theme-argon NOT resolved"
           echo "=== OpenClash resolved? (warn only) ==="
-          grep -q "CONFIG_PACKAGE_luci-app-openclash=y" .config && echo "OK openclash resolved" || echo "WARN: luci-app-openclash NOT resolved (third-party feed missing?)"
+          grep -q "CONFIG_PACKAGE_luci-app-openclash=y" .config && echo "WARN: openclash unexpectedly present" || echo "OK openclash removed"
           echo "=== USB tethering kmods resolved? (warn only) ==="
           for k in kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-net-cdc-ncm; do
             grep -q "CONFIG_PACKAGE_$k=y" .config && echo "OK $k resolved" || echo "WARN: $k NOT resolved"
