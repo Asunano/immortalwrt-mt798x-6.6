@@ -33,8 +33,10 @@ jobs:
           ref: openwrt-24.10-6.6
           fetch-depth: 1
 
-      - name: Update & install feeds
+      - name: Add OpenClash third-party feed then update & install feeds
         run: |
+          # OpenClash is NOT in immortalwrt official feeds; add vernesong's repo
+          grep -q "OpenClash" feeds.conf.default || echo 'src-git openclash https://github.com/vernesong/OpenClash.git;master' >> feeds.conf.default
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
@@ -48,6 +50,12 @@ jobs:
           sed -i -E 's|^# (CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_cmcc_rax3000m) is not set$|\1=y|' .config
           echo 'CONFIG_PACKAGE_luci-theme-argon=y' >> .config
           echo 'CONFIG_PACKAGE_luci-app-argon-config=y' >> .config
+          # --- Tweak 4: add the 5 requested apps (all confirmed to exist in feeds) ---
+          echo 'CONFIG_PACKAGE_luci-app-autoreboot=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-app-nlbwmon=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-app-commands=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-app-upnp=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-app-openclash=y' >> .config
           make defconfig
           # 3) CRITICAL: a second defconfig re-injects feeds-default options (incl. passwall),
           #    so strip proxy shells AFTER the final defconfig. No further defconfig after this
@@ -68,6 +76,8 @@ jobs:
           grep -q "luci-app-passwall" .config && { echo "FAIL: passwall still present"; exit 1; }
           echo "=== Argon theme resolved? (warn only) ==="
           grep -q "CONFIG_PACKAGE_luci-theme-argon=y" .config && echo "OK argon theme resolved" || echo "WARN: luci-theme-argon NOT resolved"
+          echo "=== OpenClash resolved? (warn only) ==="
+          grep -q "CONFIG_PACKAGE_luci-app-openclash=y" .config && echo "OK openclash resolved" || echo "WARN: luci-app-openclash NOT resolved (third-party feed missing?)"
           echo "VERIFY DONE"
 
       - name: Download packages
