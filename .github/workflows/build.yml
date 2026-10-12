@@ -33,6 +33,16 @@ jobs:
           ref: openwrt-24.10-6.6
           fetch-depth: 1
 
+      - name: Cache ccache + downloaded sources (dl)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ccache
+            dl
+          key: rax3000m-itb-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            rax3000m-itb-${{ runner.os }}-
+
       - name: Add OpenClash third-party feed then update & install feeds
         run: |
           # OpenClash is NOT in immortalwrt official feeds; add vernesong's repo
@@ -61,6 +71,8 @@ jobs:
           echo 'CONFIG_PACKAGE_kmod-usb-net-rndis=y' >> .config
           echo 'CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y' >> .config
           echo 'CONFIG_PACKAGE_kmod-usb-net-cdc-ncm=y' >> .config
+          # --- Tweak 6: enable ccache so rebuilds reuse compiled objects ---
+          echo 'CONFIG_CCACHE=y' >> .config
           make defconfig
           # 3) CRITICAL: a second defconfig re-injects feeds-default options (incl. passwall),
           #    so strip proxy shells AFTER the final defconfig. No further defconfig after this
@@ -87,13 +99,17 @@ jobs:
           for k in kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-net-cdc-ncm; do
             grep -q "CONFIG_PACKAGE_$k=y" .config && echo "OK $k resolved" || echo "WARN: $k NOT resolved"
           done
+          echo "=== ccache enabled? (warn only) ==="
+          grep -q "CONFIG_CCACHE=y" .config && echo "OK ccache enabled" || echo "WARN: ccache NOT enabled"
           echo "VERIFY DONE"
 
       - name: Download packages
         run: make download -j$(nproc)
 
-      - name: Build (single-thread for stability)
-        run: make V=s -j1
+      - name: Build (parallel, ccache-accelerated)
+        run: |
+          export CCACHE_DIR=$HOME/.ccache
+          make V=s -j$(nproc)
 
       - name: Show built artifacts
         run: ls -lh bin/targets/mediatek/filogic/ | grep -i rax3000m
