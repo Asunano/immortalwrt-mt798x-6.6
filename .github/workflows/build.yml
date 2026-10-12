@@ -56,6 +56,11 @@ jobs:
           echo 'CONFIG_PACKAGE_luci-app-commands=y' >> .config
           echo 'CONFIG_PACKAGE_luci-app-upnp=y' >> .config
           echo 'CONFIG_PACKAGE_luci-app-openclash=y' >> .config
+          # --- Tweak 5: USB tethering (phone/tablet -> router) kernel modules ---
+          echo 'CONFIG_PACKAGE_kmod-usb-net=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-usb-net-rndis=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-usb-net-cdc-ncm=y' >> .config
           make defconfig
           # 3) CRITICAL: a second defconfig re-injects feeds-default options (incl. passwall),
           #    so strip proxy shells AFTER the final defconfig. No further defconfig after this
@@ -78,6 +83,10 @@ jobs:
           grep -q "CONFIG_PACKAGE_luci-theme-argon=y" .config && echo "OK argon theme resolved" || echo "WARN: luci-theme-argon NOT resolved"
           echo "=== OpenClash resolved? (warn only) ==="
           grep -q "CONFIG_PACKAGE_luci-app-openclash=y" .config && echo "OK openclash resolved" || echo "WARN: luci-app-openclash NOT resolved (third-party feed missing?)"
+          echo "=== USB tethering kmods resolved? (warn only) ==="
+          for k in kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-net-cdc-ncm; do
+            grep -q "CONFIG_PACKAGE_$k=y" .config && echo "OK $k resolved" || echo "WARN: $k NOT resolved"
+          done
           echo "VERIFY DONE"
 
       - name: Download packages
