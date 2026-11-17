@@ -68,7 +68,19 @@ jobs:
           echo 'CONFIG_PACKAGE_kmod-usb-net-rndis=y' >> .config
           echo 'CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y' >> .config
           echo 'CONFIG_PACKAGE_kmod-usb-net-cdc-ncm=y' >> .config
-          # --- Tweak 6: enable ccache so rebuilds reuse compiled objects ---
+          # --- Tweak 6: CAKE + SQM kernel shaping ---
+          # kmod-sched-cake is defined in package/kernel/linux/modules/netsupport.mk
+          # (this fork merged upstream's netsched.mk into netsupport.mk) but is NOT
+          # selected by the base defconfig, so sch_cake.ko is never built and the
+          # package never lands in the feed. Without it `opkg install sqm-scripts`
+          # fails at resolve time (DEPENDS: +kmod-sched-cake).
+          # tc comes from tc-tiny; kmod-ifb and iptables-mod-ipopt are in defconfig.
+          echo 'CONFIG_PACKAGE_kmod-sched-cake=y' >> .config
+          echo 'CONFIG_PACKAGE_sqm-scripts=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-app-sqm=y' >> .config
+          # --- Tweak 7: keep BBR built in (helps on high-loss cellular uplinks) ---
+          echo 'CONFIG_PACKAGE_kmod-tcp-bbr=y' >> .config
+          # --- Tweak 8: enable ccache so rebuilds reuse compiled objects ---
           echo 'CONFIG_CCACHE=y' >> .config
           make defconfig
           # 3) CRITICAL: a second defconfig re-injects feeds-default options (incl. passwall),
@@ -94,6 +106,10 @@ jobs:
           grep -q "CONFIG_PACKAGE_luci-app-openclash=y" .config && echo "WARN: openclash unexpectedly present" || echo "OK openclash removed"
           echo "=== USB tethering kmods resolved? (warn only) ==="
           for k in kmod-usb-net kmod-usb-net-rndis kmod-usb-net-cdc-ether kmod-usb-net-cdc-ncm; do
+            grep -q "CONFIG_PACKAGE_$k=y" .config && echo "OK $k resolved" || echo "WARN: $k NOT resolved"
+          done
+          echo "=== CAKE + SQM resolved? (warn only) ==="
+          for k in kmod-sched-cake sqm-scripts luci-app-sqm; do
             grep -q "CONFIG_PACKAGE_$k=y" .config && echo "OK $k resolved" || echo "WARN: $k NOT resolved"
           done
           echo "=== ccache enabled? (warn only) ==="
